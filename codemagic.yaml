@@ -7,6 +7,10 @@ workflows:
       flutter: stable
       xcode: latest
     scripts:
+      - name: Clean Build Workspace
+        script: |
+          flutter clean
+          rm -rf ios/Podfile.lock ios/Pods
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build iOS App
