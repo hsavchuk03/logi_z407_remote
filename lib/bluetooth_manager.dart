@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'constants.dart';
 
@@ -11,7 +10,6 @@ class BluetoothManager extends ChangeNotifier {
   BluetoothManager({String targetDeviceHint = LogiConstants.defaultDeviceHint})
       : _targetDeviceHint = targetDeviceHint;
 
-  final FlutterBluePlus _ble = FlutterBluePlus.instance;
   final String _targetDeviceHint;
 
   BluetoothDevice? _device;
@@ -36,19 +34,23 @@ class BluetoothManager extends ChangeNotifier {
     _setStatus(BleConnectionStatus.scanning, 'Scanning for Z407…');
 
     try {
-      _scanSubscription = _ble.scan(
+      await FlutterBluePlus.stopScan();
+      await FlutterBluePlus.startScan(
         withServices: [Guid(LogiConstants.serviceUuid)],
         timeout: timeout,
-      ).listen(
+        androidUsesFineLocation: true,
+      );
+
+      _scanSubscription = FlutterBluePlus.scanResults.listen(
         (results) async {
           for (final result in results) {
             final device = result.device;
             final label = device.platformName.isNotEmpty ? device.platformName : 'Unknown';
-            final id = device.remoteId.str.toLowerCase();
-            final matchesHint = label.toLowerCase().contains(_targetDeviceHint.toLowerCase()) ||
-                id.contains(_targetDeviceHint.toLowerCase());
+            final matchesHint =
+                label.toLowerCase().contains(_targetDeviceHint.toLowerCase()) ||
+                label.toLowerCase().contains('z407');
 
-            if (matchesHint || label.toLowerCase().contains('z407')) {
+            if (matchesHint) {
               _device = device;
               _deviceName = label;
               _setStatus(BleConnectionStatus.connecting, 'Connecting to $label');
@@ -174,6 +176,7 @@ class BluetoothManager extends ChangeNotifier {
   Future<void> disconnect() async {
     await _scanSubscription?.cancel();
     _scanSubscription = null;
+    await FlutterBluePlus.stopScan();
 
     if (_device != null) {
       try {
@@ -186,9 +189,16 @@ class BluetoothManager extends ChangeNotifier {
     _setStatus(BleConnectionStatus.disconnected, 'Disconnected');
   }
 
+  void _setStatus(BleConnectionStatus status, String message) {
+    _status = status;
+    _statusMessage = message;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _scanSubscription?.cancel();
+    FlutterBluePlus.stopScan();
     super.dispose();
   }
 }
