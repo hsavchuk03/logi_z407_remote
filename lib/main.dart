@@ -1,7 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'bluetooth_manager.dart';
+import 'constants.dart';
 
 void main() {
   runApp(const MyApp());
@@ -12,37 +12,22 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Logi Z407 Remote',
-      home: ChangeNotifierProvider(
-        create: (_) => _UIModel(),
-        child: const HomePage(),
+    return ChangeNotifierProvider(
+      create: (_) => BluetoothManager()..startScan(),
+      child: MaterialApp(
+        title: 'Logi Z407 Remote',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData.dark(useMaterial3: true).copyWith(
+          scaffoldBackgroundColor: const Color(0xFF090B12),
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF5F7CFF),
+            secondary: Color(0xFF7C91FF),
+            surface: Color(0xFF121725),
+          ),
+        ),
+        home: const HomePage(),
       ),
     );
-  }
-}
-
-class _UIModel extends ChangeNotifier {
-  final BluetoothManager ble = BluetoothManager();
-  double volume = 0.5;
-  Timer? _debounce;
-
-  _UIModel() {
-    ble.startScan();
-  }
-
-  void setVolume(double v) {
-    volume = v;
-    notifyListeners();
-
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 150), () {
-      final step = ((v - 0.5) * 100).round();
-      final bytes = step >= 0
-          ? [0x03, 0x02, 0x01, 0x00]
-          : [0x03, 0x02, 0xFF, 0x00];
-      ble.sendZ407Command(bytes);
-    });
   }
 }
 
@@ -51,34 +36,169 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final model = Provider.of<_UIModel>(context);
+    final manager = context.watch<BluetoothManager>();
+    final statusColor = switch (manager.status) {
+      BleConnectionStatus.connected => Colors.greenAccent,
+      BleConnectionStatus.scanning || BleConnectionStatus.connecting => Colors.amberAccent,
+      BleConnectionStatus.error => Colors.redAccent,
+      _ => Colors.grey,
+    };
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Logi Z407 Remote')),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Volume'),
-            Slider(
-              value: model.volume,
-              onChanged: model.setVolume,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => model.ble.sendZ407Command([0x03, 0x01, 0x01]),
-              child: const Text('Play/Pause'),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => model.ble.sendZ407Command([0x03, 0x01, 0x02]),
-              child: const Text('Next Track'),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => model.ble.sendZ407Command([0x04, 0x01, 0x01]),
-              child: const Text('Input Switch (Long)'),
-            ),
-          ],
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Z407 Remote'),
+        actions: [
+          IconButton(
+            onPressed: () => manager.startScan(),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121725),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            manager.status.name.toUpperCase(),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            manager.deviceName != null
+                                ? 'Connected to ${manager.deviceName}'
+                                : manager.statusMessage,
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Volume',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ClipOval(
+                child: SizedBox(
+                  width: 260,
+                  height: 260,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF1D2435),
+                              const Color(0xFF0F1422),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          border: Border.all(color: Colors.white12, width: 2),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: 130,
+                        child: GestureDetector(
+                          onTap: () => manager.sendCommand(LogiConstants.volumeUp),
+                          child: Container(
+                            color: Colors.transparent,
+                            alignment: Alignment.topCenter,
+                            padding: const EdgeInsets.only(top: 28),
+                            child: const Text('+', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 130,
+                        child: GestureDetector(
+                          onTap: () => manager.sendCommand(LogiConstants.volumeDown),
+                          child: Container(
+                            color: Colors.transparent,
+                            alignment: Alignment.bottomCenter,
+                            padding: const EdgeInsets.only(bottom: 28),
+                            child: const Text('−', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.volume_up_rounded, size: 40),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tap + / -',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => manager.sendCommand(LogiConstants.playPause),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('Play/Pause'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => manager.sendCommand(LogiConstants.nextTrack),
+                    icon: const Icon(Icons.skip_next_rounded),
+                    label: const Text('Next Track'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => manager.sendCommand(LogiConstants.inputSwitch),
+                    icon: const Icon(Icons.swap_horiz_rounded),
+                    label: const Text('Input Switch'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
