@@ -131,7 +131,13 @@ class BluetoothManager extends ChangeNotifier {
   }
 
   Future<void> _writePayload(List<int> payload) async {
-    if (_device == null || _device!.connectionState != BluetoothConnectionState.connected) {
+    if (_device == null) {
+      await connectToDevice();
+      return;
+    }
+
+    final connectionState = await _device!.connectionState.first;
+    if (connectionState != BluetoothConnectionState.connected) {
       await connectToDevice();
     }
 
