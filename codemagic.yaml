@@ -13,7 +13,16 @@ workflows:
           rm -rf ios/Podfile.lock ios/Pods
       - name: Get Flutter packages
         script: flutter pub get
-      - name: Build iOS App
-        script: flutter build ipa --release --no-codesign
+      - name: Build Unsigned iOS App
+        script: |
+          # 1. Build the raw .app binary (bypasses the strict archive export)
+          flutter build ios --release --no-codesign
+          
+          # 2. Manually package it into a Sideloadly-ready .ipa
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          mv Runner.app Payload/
+          zip -qr Z407Remote.ipa Payload
     artifacts:
-      - build/ios/ipa/*.ipa
+      # Grab the newly created zip file
+      - build/ios/iphoneos/*.ipa
