@@ -7,7 +7,7 @@ workflows:
       flutter: stable
       xcode: latest
     scripts:
-      - name: Clean Build Workspace
+      - name: Clean build workspace
         script: |
           flutter clean
           rm -rf ios/Podfile.lock ios/Pods
@@ -15,45 +15,19 @@ workflows:
       - name: Get Flutter packages
         script: flutter pub get
 
-      - name: Set iOS 13.0 Deployment Target
+      - name: Set iOS deployment target
         script: |
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = .*/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
 
-      - name: Hardcode Info.plist Variables
+      - name: Set bundle identifier
         script: |
-          # Overwrite raw build variables so SideStore can map the internal binary execution paths
-          sed -i '' 's/$(PRODUCT_BUNDLE_IDENTIFIER)/com.harry.z407remote/g' ios/Runner/Info.plist
-          sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = .*/PRODUCT_BUNDLE_IDENTIFIER = com.harry.z407remote;/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/$(EXECUTABLE_NAME)/Runner/g' ios/Runner/Info.plist
+          sed -i '' 's/com\.example\.logiZ407Remote/com.harry.z407remote/g' ios/Runner.xcodeproj/project.pbxproj
 
-      - name: Build Unsigned iOS App
+      - name: Build signed IPA
         script: |
-          # Install Link Identity Editor (ldid) via Homebrew
-          brew install ldid
-          
-          # Compile the raw iOS release binaries without local signing requirements
-          flutter build ios --release --no-codesign
-          
-          # 1. Sign the core native executable
-          ldid -S build/ios/iphoneos/Runner.app/Runner
-          
-          # 2. Dynamically locate and sign all compiled frameworks (App, Flutter, and third-party plugins)
-          if [ -d "build/ios/iphoneos/Runner.app/Frameworks" ]; then
-            for framework in build/ios/iphoneos/Runner.app/Frameworks/*.framework; do
-              binary_name=$(basename "$framework" .framework)
-              if [ -f "$framework/$binary_name" ]; then
-                echo "Applying iOS pseudo-signature to framework binary: $binary_name"
-                ldid -S "$framework/$binary_name"
-              fi
-            done
-          fi
-          
-          # 3. Manually reconstruct the standard IPA distribution directory structure
-          mkdir -p build/ios/iphoneos/Payload
-          mv build/ios/iphoneos/Runner.app/ build/ios/iphoneos/Payload/
-          
-          # 4. Compress the payload into the final installation archive
-          cd build/ios/iphoneos && zip -qyr Z407Remote.ipa Payload
+          flutter build ios --release
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -archivePath build/ios/archive/Runner.xcarchive -allowProvisioningUpdates archive
+          xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive -exportPath build/ios/ipa -exportOptionsPlist ios/ExportOptions.plist -allowProvisioningUpdates
 
     artifacts:
-      - build/ios/iphoneos/Z407Remote.ipa
+      - build/ios/ipa/*.ipa
