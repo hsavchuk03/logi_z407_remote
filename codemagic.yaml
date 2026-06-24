@@ -22,12 +22,29 @@ workflows:
       - name: Set bundle identifier
         script: |
           sed -i '' 's/com\.example\.logiZ407Remote/com.harry.z407remote/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/$(PRODUCT_BUNDLE_IDENTIFIER)/com.harry.z407remote/g' ios/Runner/Info.plist
+          sed -i '' 's/$(EXECUTABLE_NAME)/Runner/g' ios/Runner/Info.plist
 
-      - name: Build signed IPA
+      - name: Build unsigned IPA
         script: |
-          flutter build ios --release
-          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -archivePath build/ios/archive/Runner.xcarchive -allowProvisioningUpdates archive
-          xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive -exportPath build/ios/ipa -exportOptionsPlist ios/ExportOptions.plist -allowProvisioningUpdates
+          brew install ldid || true
+          flutter build ios --release --no-codesign
+
+          ldid -S build/ios/iphoneos/Runner.app/Runner
+
+          if [ -d "build/ios/iphoneos/Runner.app/Frameworks" ]; then
+            for framework in build/ios/iphoneos/Runner.app/Frameworks/*.framework; do
+              binary_name=$(basename "$framework" .framework)
+              if [ -f "$framework/$binary_name" ]; then
+                ldid -S "$framework/$binary_name"
+              fi
+            done
+          fi
+
+          mkdir -p build/ios/iphoneos/Payload
+          rm -rf build/ios/iphoneos/Payload/Runner.app
+          cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/Runner.app
+          cd build/ios/iphoneos && zip -qr Z407Remote.ipa Payload
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - build/ios/iphoneos/Z407Remote.ipa
