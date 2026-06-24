@@ -17,7 +17,7 @@ workflows:
 
       - name: Set iOS deployment target
         script: |
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = .*/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = .*/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/Runner.xcodeproj/project.pbxproj
 
       - name: Set bundle identifier
         script: |
@@ -27,24 +27,23 @@ workflows:
 
       - name: Build unsigned IPA
         script: |
-          brew install ldid || true
           flutter build ios --release --no-codesign
-
-          ldid -S build/ios/iphoneos/Runner.app/Runner
 
           if [ -d "build/ios/iphoneos/Runner.app/Frameworks" ]; then
             for framework in build/ios/iphoneos/Runner.app/Frameworks/*.framework; do
               binary_name=$(basename "$framework" .framework)
               if [ -f "$framework/$binary_name" ]; then
-                ldid -S "$framework/$binary_name"
+                codesign --force --deep --sign - --preserve-metadata=identifier,flags --timestamp=none "$framework/$binary_name"
               fi
             done
           fi
 
+          codesign --force --deep --sign - --preserve-metadata=identifier,flags --timestamp=none build/ios/iphoneos/Runner.app
+
           mkdir -p build/ios/iphoneos/Payload
           rm -rf build/ios/iphoneos/Payload/Runner.app
           cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/Runner.app
-          cd build/ios/iphoneos && zip -qr Z407Remote.ipa Payload
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Payload build/ios/iphoneos/Z407Remote.ipa
 
     artifacts:
       - build/ios/iphoneos/Z407Remote.ipa
