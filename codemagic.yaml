@@ -21,11 +21,13 @@ workflows:
           # Replaces Xcode's raw variables and the com.example block with a hardcoded, SideStore-safe ID
           sed -i '' 's/$(PRODUCT_BUNDLE_IDENTIFIER)/com.harry.z407remote/g' ios/Runner/Info.plist
           sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = .*/PRODUCT_BUNDLE_IDENTIFIER = com.harry.z407remote;/g' ios/Runner.xcodeproj/project.pbxproj
-      - name: Build Unsigned iOS App
+      - name: Prepare Export Options
         script: |
-          flutter build ios --release --no-codesign
-          mkdir -p build/ios/iphoneos/Payload
-          mv build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
-          cd build/ios/iphoneos && zip -qyr Z407Remote.ipa Payload
+          if [ -n "$TEAM_ID" ]; then
+            sed -i '' "s#<string></string>#<string>$TEAM_ID</string>#g" ios/ExportOptions.plist
+          fi
+      - name: Build Signed iOS IPA
+        script: |
+          flutter build ipa --export-options-plist=ios/ExportOptions.plist
     artifacts:
-      - build/ios/iphoneos/Z407Remote.ipa
+      - build/ios/ipa/*.ipa
