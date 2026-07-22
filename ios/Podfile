@@ -2,7 +2,11 @@ platform :ios, '13.0'
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
-project 'Runner.xcodeproj'
+project 'Runner.xcodeproj', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
 
 def flutter_root
   generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __dir__)
@@ -28,4 +32,10 @@ end
 
 target 'RunnerTests' do
   inherit! :search_paths
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
 end
